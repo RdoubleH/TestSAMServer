@@ -100,7 +100,7 @@ namespace TestSAMServer {
                 var img = _img.Clone() as LotusAPI.MV.Image;
                 var bgr = img.Split();
                 //blend result
-                img = LotusAPI.MV.Image.Merge(new LotusAPI.MV.Image[] { bgr[0], bgr[1] * 0.7 + mask_img * 0.3, bgr[2] });
+                img = LotusAPI.MV.Image.Merge(new LotusAPI.MV.Image[] { bgr[0], bgr[1] * 0.5 + mask_img * 0.5, bgr[2] });
                 //draw outline
                 mask_img.FindContours(20)
                     .ToList()
