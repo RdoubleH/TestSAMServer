@@ -95,11 +95,16 @@ namespace TestSAMServer {
                 //read mask data
                 var mask_img = LotusAPI.MV.Image.Decode(res_buf, LotusAPI.MV.ImageDecodeOption.Grayscale).ToGray();
 
+
                 //create overlay
                 var img = _img.Clone() as LotusAPI.MV.Image;
                 var bgr = img.Split();
                 //blend result
                 img = LotusAPI.MV.Image.Merge(new LotusAPI.MV.Image[] { bgr[0], bgr[1] * 0.7 + mask_img * 0.3, bgr[2] });
+                //draw outline
+                mask_img.FindContours(20)
+                    .ToList()
+                    .ForEach(x => img.DrawPoly(x, Color.Magenta, 2,true));
                 iv.SetImage(img);
             } catch(Exception ex) { Logger.Error(ex.Message); Logger.Trace(ex.StackTrace); }
         }
