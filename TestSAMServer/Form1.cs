@@ -77,7 +77,7 @@ namespace TestSAMServer {
                 Logger.Debug(">" + res);
                 //send image data
                 _client.Send(_imgbuf, 0, _imgbuf.Length);
-                res = _client.ReadLine(1000);//expect OK 
+                res = _client.ReadLine(10000);//expect OK 
                 Logger.Debug(">" + res);
 
                 //parse response
@@ -87,7 +87,7 @@ namespace TestSAMServer {
                 int mask_size = jres["size"];
                 byte[] res_buf = new byte[mask_size];
                 _client.Read(res_buf, 0, mask_size);
-                res = _client.ReadLine(1000);//expect OK 
+                res = _client.ReadLine(10000);//expect OK 
                 if(res != "OK") {
                     throw new Exception($"Failed to receive result data (RES={res})");
                 }
