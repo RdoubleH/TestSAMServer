@@ -75,39 +75,47 @@ namespace TestSAMServer {
                 Connect();
                 SetImage(_img);
                 iv.AutoScale();
+                Predict(_roi, _pnts, _neg_pnts);
             }
             catch (Exception ex) { Logger.Error(ex.Message); Logger.Trace(ex.StackTrace); }
             Disconnect();
         }
 
         List<Point2i> _pnts = new List<Point2i>();
+        List<Point2i> _neg_pnts = new List<Point2i>();
+        RectangleF _roi;
         private void iv_ROISelectedEvent(RectangleF roi) {
-            if(ckb_InROI.Checked) Predict(roi, _pnts);
+            _roi = roi;
+            if (ckb_InROI.Checked) Predict(_roi, _pnts, _neg_pnts);
         }
-        private void Predict(RectangleF roi, List<Point2i> pnts) {
+
+        private void Predict(RectangleF roi, List<Point2i> pnts, List<Point2i> neg_pnts) {
             try {
                 if (_img == null) throw new Exception("No image");
                 //create request message
                 Json request = new Json();
                 request["name"] = "predict";
                 var rect = (Rect2i)roi;
-                request["box"][0] = rect.X;
-                request["box"][1] = rect.Y;
-                request["box"][2] = rect.X + rect.Width;
-                request["box"][3] = rect.Y + rect.Height;
-                if (pnts == null) {
-                    var cen = (rect.TopLeft + rect.BottomRight) / 2;
-                    cen.Write(request["point"][0]);
-                    request["label"][0] = 1;
+                if (roi.Width * roi.Height > 100) {
+                    request["box"][0] = rect.X;
+                    request["box"][1] = rect.Y;
+                    request["box"][2] = rect.X + rect.Width;
+                    request["box"][3] = rect.Y + rect.Height;
                 }
-                else {
+                else if (pnts != null) {
                     for (int i = 0; i < pnts.Count; i++) {
                         pnts[i].Write(request["point"][i]);
                         request["label"][i] = 1;
                     }
+                    if (neg_pnts != null) {
+                        for (int i = 0; i < neg_pnts.Count; i++) {
+                            neg_pnts[i].Write(request["point"][i + pnts.Count]);
+                            request["label"][i + pnts.Count] = 0;
+                        }
+                    }
                 }
 
-                request["multimask"] = true;
+                request["multimask"] = false;
                 var str = request.ToString().Replace("\n", "").Replace(" ", "") + "\r\n";
                 Logger.Debug(str);
 
@@ -156,23 +164,37 @@ namespace TestSAMServer {
 
 
         private void iv_MouseClick(FastImageView sender, FastImageView.MouseEventArgs e) {
-            if(ModifierKeys == Keys.Control) {
+            if (ckb_InROI.Checked) return;
+            _roi = new RectangleF();
+            if (ModifierKeys == Keys.Control) {
                 _pnts.Add(e.Location);
-                if(!ckb_InROI.Checked) Predict(new RectangleF(), _pnts);
-                iv.Invalidate();
+                Predict(_roi, _pnts, _neg_pnts);
             }
+            if (ModifierKeys == Keys.Shift) {
+                _neg_pnts.Add(e.Location);
+                Predict(_roi, _pnts, _neg_pnts);
+            }
+            iv.Invalidate();
         }
 
         private void iv_PostRenderDrawEvent(FastImageView c) {
-            try { 
-                for(int i = 0; i < _pnts.Count; i++) {
-                    c.DrawCircle(_pnts[i], 3, Color.Lime, -1);
+            try {
+                for (int i = 0; i < _pnts.Count; i++) {
+                    c.DrawCircle(_pnts[i], 6, Color.Lime, 3);
                 }
-            }catch { }
+                for (int i = 0; i < _neg_pnts.Count; i++) {
+                    c.DrawCircle(_neg_pnts[i], 6, Color.Red, 3);
+                }
+                c.DrawRectangle(_roi, Color.Magenta, 2);
+            }
+            catch { }
         }
 
         private void iv_KeyUp(object sender, KeyEventArgs e) {
-            if (e.KeyCode == Keys.Escape) _pnts.Clear();
+            if (e.KeyCode == Keys.Escape) {
+                _pnts.Clear();
+                _neg_pnts.Clear();
+            }
             iv.Invalidate();
         }
     }
