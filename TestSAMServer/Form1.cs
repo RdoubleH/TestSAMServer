@@ -29,7 +29,7 @@ namespace TestSAMServer {
             _client.Disconnect();
             _client = new SimpleTcpClient();
             _client.Connect(tb_IP.Text, 8727, 10000, 10000);
-            if (_client.Connected)
+            if(_client.Connected)
                 Logger.Info("CONNECTED");
             else
                 throw new Exception("Failed to connect!");
@@ -42,12 +42,12 @@ namespace TestSAMServer {
 
         String GetJsonStr(Json j) => j.ToString().Replace("\n", "").Replace(" ", "") + "\r\n";
         void SendRequest(Json request) {
-            if (!_client.Connected) throw new Exception("Client not connected!");
+            if(!_client.Connected) throw new Exception("Client not connected!");
             var str = GetJsonStr(request);
             var buf = ASCIIEncoding.ASCII.GetBytes(str);
             _client.Send(buf, 0, buf.Length);
             var res = _client.ReadLine(1000);//expect OK 
-            if (res != "OK") {
+            if(res != "OK") {
                 throw new Exception($"Failed to send request (RES={res})");
             }
             Logger.Debug(">" + res);
@@ -62,7 +62,7 @@ namespace TestSAMServer {
             SendRequest(request);
             _client.Send(imgbuf, 0, imgbuf.Length);
             var res = _client.ReadLine(100000);//expect OK 
-            if (res != "OK") {
+            if(res != "OK") {
                 throw new Exception($"Failed to send request (RES={res})");
             }
             Logger.Debug(">" + res);
@@ -75,9 +75,8 @@ namespace TestSAMServer {
                 Connect();
                 SetImage(_img);
                 iv.AutoScale();
-                Predict(_roi, _pnts, _neg_pnts);
-            }
-            catch (Exception ex) { Logger.Error(ex.Message); Logger.Trace(ex.StackTrace); }
+                Predict();
+            } catch(Exception ex) { Logger.Error(ex.Message); Logger.Trace(ex.StackTrace); }
             Disconnect();
         }
 
@@ -86,33 +85,38 @@ namespace TestSAMServer {
         RectangleF _roi;
         private void iv_ROISelectedEvent(RectangleF roi) {
             _roi = roi;
-            if (ckb_InROI.Checked) Predict(_roi, _pnts, _neg_pnts);
+            if(ckb_InROI.Checked) Predict(_roi, _pnts, _neg_pnts);
         }
 
+        private void Predict() => Predict(_roi, _pnts, _neg_pnts);
         private void Predict(RectangleF roi, List<Point2i> pnts, List<Point2i> neg_pnts) {
             try {
-                if (_img == null) throw new Exception("No image");
+                if(_img == null) throw new Exception("No image");
                 //create request message
                 Json request = new Json();
                 request["name"] = "predict";
                 var rect = (Rect2i)roi;
-                if (roi.Width * roi.Height > 100) {
+                if(roi.Width * roi.Height > 100) {
                     request["box"][0] = rect.X;
                     request["box"][1] = rect.Y;
                     request["box"][2] = rect.X + rect.Width;
                     request["box"][3] = rect.Y + rect.Height;
                 }
-                else if (pnts != null) {
-                    for (int i = 0; i < pnts.Count; i++) {
+                else if(pnts != null && pnts.Count > 0) {
+                    for(int i = 0; i < pnts.Count; i++) {
                         pnts[i].Write(request["point"][i]);
                         request["label"][i] = 1;
                     }
-                    if (neg_pnts != null) {
-                        for (int i = 0; i < neg_pnts.Count; i++) {
+                    if(neg_pnts != null) {
+                        for(int i = 0; i < neg_pnts.Count; i++) {
                             neg_pnts[i].Write(request["point"][i + pnts.Count]);
                             request["label"][i + pnts.Count] = 0;
                         }
                     }
+                }
+                else {
+                    iv.SetImage(_img);
+                    return;
                 }
 
                 request["multimask"] = false;
@@ -125,7 +129,7 @@ namespace TestSAMServer {
                 var buf = ASCIIEncoding.ASCII.GetBytes(str);
                 _client.Send(buf, 0, buf.Length);
                 var res = _client.ReadLine(1000);//expect OK 
-                if (res != "OK") {
+                if(res != "OK") {
                     throw new Exception($"Failed to send request (RES={res})");
                 }
                 Logger.Debug(">" + res);
@@ -139,7 +143,7 @@ namespace TestSAMServer {
                 byte[] res_buf = new byte[mask_size];
                 _client.Read(res_buf, 0, mask_size);
                 res = _client.ReadLine(1000);//expect OK 
-                if (res != "OK") {
+                if(res != "OK") {
                     throw new Exception($"Failed to receive result data (RES={res})");
                 }
                 Logger.Debug(">" + res);
@@ -156,45 +160,44 @@ namespace TestSAMServer {
                     .ToList()
                     .ForEach(x => img.DrawPoly(x, Color.Magenta, 2, true));
                 iv.SetImage(img);
-            }
-            catch (Exception ex) { Logger.Error(ex.Message); Logger.Trace(ex.StackTrace); }
+            } catch(Exception ex) { Logger.Error(ex.Message); Logger.Trace(ex.StackTrace); }
             Disconnect();
         }
 
 
 
         private void iv_MouseClick(FastImageView sender, FastImageView.MouseEventArgs e) {
-            if (ckb_InROI.Checked) return;
+            if(ckb_InROI.Checked) return;
             _roi = new RectangleF();
-            if (ModifierKeys == Keys.Control) {
+            if(ModifierKeys == Keys.Control) {
                 _pnts.Add(e.Location);
-                Predict(_roi, _pnts, _neg_pnts);
+                Predict();
             }
-            if (ModifierKeys == Keys.Shift) {
+            if(ModifierKeys == Keys.Shift) {
                 _neg_pnts.Add(e.Location);
-                Predict(_roi, _pnts, _neg_pnts);
+                Predict();
             }
             iv.Invalidate();
         }
 
         private void iv_PostRenderDrawEvent(FastImageView c) {
             try {
-                for (int i = 0; i < _pnts.Count; i++) {
+                for(int i = 0; i < _pnts.Count; i++) {
                     c.DrawCircle(_pnts[i], 6, Color.Lime, 3);
                 }
-                for (int i = 0; i < _neg_pnts.Count; i++) {
+                for(int i = 0; i < _neg_pnts.Count; i++) {
                     c.DrawCircle(_neg_pnts[i], 6, Color.Red, 3);
                 }
                 c.DrawRectangle(_roi, Color.Magenta, 2);
-            }
-            catch { }
+            } catch { }
         }
 
         private void iv_KeyUp(object sender, KeyEventArgs e) {
-            if (e.KeyCode == Keys.Escape) {
+            if(e.KeyCode == Keys.Escape) {
                 _pnts.Clear();
                 _neg_pnts.Clear();
             }
+            Predict();
             iv.Invalidate();
         }
     }
